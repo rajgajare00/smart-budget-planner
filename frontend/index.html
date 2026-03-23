@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Budget Planner</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    input, button { padding: 8px; margin: 4px; }
+    #result { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Smart Budget Planner (Demo)</h1>
+  <p>Connects to backend API and manages transactions</p>
+
+  <button id="loadMessageBtn">Load Backend Message</button>
+  <div id="message">No message loaded yet</div>
+
+  <h2>Add transaction</h2>
+  <div>
+    <label>Amount: <input id="amount" type="number" step="0.01" /></label>
+    <label>Category: <input id="category" type="text" /></label>
+    <label>Type:
+      <select id="type">
+        <option value="income">Income</option>
+        <option value="expense">Expense</option>
+      </select>
+    </label>
+    <button id="addTxnBtn">Add Transaction</button>
+  </div>
+
+  <h2>Transactions</h2>
+  <div id="totals"></div>
+  <button id="loadSummaryBtn">Load Monthly Summary</button>
+  <div id="summary"></div>
+  <ul id="transactions"></ul>
+
+  <h2>Echo endpoint</h2>
+  <input id="echoInput" type="text" placeholder="Type something" />
+  <button id="echoBtn">Send to backend</button>
+  <div id="result"></div>
+
+  <script>
+    const API_BASE = window.location.origin + '/api';
+
+    document.getElementById('loadMessageBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch(`${API_BASE}/message`);
+        const data = await res.json();
+        document.getElementById('message').textContent = data.message;
+      } catch (error) {
+        document.getElementById('message').textContent = 'Error fetching message';
+      }
+    });
+
+    async function refreshTransactions() {
+      const res = await fetch(`${API_BASE}/transactions`);
+      const txns = await res.json();
+
+      const list = document.getElementById('transactions');
+      list.innerHTML = '';
+
+      let income = 0;
+      let expense = 0;
+
+      txns.forEach((t) => {
+        const item = document.createElement('li');
+        item.textContent = `${t.id}: [${t.type}] ${t.category} - $${t.amount.toFixed(2)} (${new Date(t.date).toLocaleString()})`;
+
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.style.marginLeft = '10px';
+        del.addEventListener('click', async () => {
+          await fetch(`${API_BASE}/transactions/${t.id}`, { method: 'DELETE' });
+          refreshTransactions();
+        });
+
+        item.appendChild(del);
+        list.appendChild(item);
+
+        if (t.type === 'income') income += t.amount;
+        else expense += t.amount;
+      });
+
+      const balance = income - expense;
+      document.getElementById('totals').textContent = `Income: $${income.toFixed(2)} | Expense: $${expense.toFixed(2)} | Balance: $${balance.toFixed(2)}`;
+    }
+
+    document.getElementById('loadMessageBtn').addEventListener('click', async () => {
+      try {
+        const res = await fetch(`${API_BASE}/message`);
+        const data = await res.json();
+        document.getElementById('message').textContent = data.message;
+      } catch (error) {
+        document.getElementById('message').textContent = 'Error fetching message';
+      }
+    });
+
+    document.getElementById('addTxnBtn').addEventListener('click', async () => {
+      const amount = parseFloat(document.getElementById('amount').value);
+      const category = document.getElementById('category').value;
+      const type = document.getElementById('type').value;
+
+      if (isNaN(amount) || !category) {
+        alert('Please fill amount and category');
+        return;
+      }
+
+      await fetch(`${API_BASE}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, category, type }),
+      });
+
+      document.getElementById('amount').value = '';
+      document.getElementById('category').value = '';
+      refreshTransactions();
+      loadMonthlySummary();
+    });
+
+    async function loadMonthlySummary() {
+      try {
+        const res = await fetch(`${API_BASE}/summary`);
+        const data = await res.json();
+        document.getElementById('summary').textContent = `Month: ${data.month} | Income: $${data.totalIncome.toFixed(2)} | Expense: $${data.totalExpense.toFixed(2)} | Balance: $${data.balance.toFixed(2)}`;
+      } catch (error) {
+        document.getElementById('summary').textContent = 'Error loading summary';
+      }
+    }
+
+    document.getElementById('loadSummaryBtn').addEventListener('click', loadMonthlySummary);
+
+    document.getElementById('echoBtn').addEventListener('click', async () => {
+      const text = document.getElementById('echoInput').value;
+      try {
+        const res = await fetch(`${API_BASE}/echo`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        const data = await res.json();
+        document.getElementById('result').textContent = `Backend says: ${data.echo}`;
+      } catch (error) {
+        document.getElementById('result').textContent = 'Error calling backend';
+      }
+    });
+
+    refreshTransactions();
+    loadMonthlySummary();
+  </script>
+</body>
+</html>
